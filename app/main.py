@@ -165,8 +165,8 @@ with st.sidebar:
     st.markdown("<p style='color:#64748b;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;'>Navigation</p>", unsafe_allow_html=True)
 
     page = st.radio(
-        "",
-        ["⚡ Engine 1 — Tactical Ops", "🏛️ Engine 2 — Structural Policy"],
+        "Select Engine",
+        ["⚡ Engine 1 — Tactical Ops", "🏛️ Engine 2 — Structural Policy", "📊 Engine 3 — Rejection Audit"],
         label_visibility="collapsed"
     )
 
@@ -202,13 +202,22 @@ if "Engine 1" in page:
         "tactical_ops",
         os.path.join(os.path.dirname(__file__), "pages", "01_tactical_ops.py")
     )
-    mod = importlib.util.load_from_spec(spec)
+    mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-else:
+elif "Engine 2" in page:
     import importlib.util, sys, os
     spec = importlib.util.spec_from_file_location(
         "structural",
         os.path.join(os.path.dirname(__file__), "pages", "02_structural.py")
     )
-    mod = importlib.util.load_from_spec(spec)
+    mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+else:
+    import importlib.util, sys, os
+    spec = importlib.util.spec_from_file_location(
+        "rejection_audit",
+        os.path.join(os.path.dirname(__file__), "pages", "03_rejection_audit.py")
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+

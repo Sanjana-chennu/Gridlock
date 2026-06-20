@@ -60,3 +60,5 @@ logs/
 # Misc
 *.csv
 *.parquet
+test_satellite.jpg
+

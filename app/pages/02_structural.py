@@ -20,14 +20,14 @@ if ROOT not in sys.path:
 
 # ── Mock DFS data ─────────────────────────────────────────────────────────────
 MOCK_DFS = [
-    {"hex_id":"881f19d307fffff","zone_name":"Marathahalli Bridge", "zone_type":"intersection","lat_center":12.9565,"lng_center":77.7006,"dfs_score":96.4,"max_streak_wks":24,"avg_weekly_violations":34.2,"avg_enforcement":5.1,"dfs_triggered":True},
-    {"hex_id":"881f19d301fffff","zone_name":"Hebbal Flyover",      "zone_type":"intersection","lat_center":13.0358,"lng_center":77.5970,"dfs_score":91.2,"max_streak_wks":23,"avg_weekly_violations":31.8,"avg_enforcement":4.7,"dfs_triggered":True},
-    {"hex_id":"881f19d311fffff","zone_name":"Majestic Bus Stand",  "zone_type":"metro",       "lat_center":12.9767,"lng_center":77.5713,"dfs_score":87.5,"max_streak_wks":22,"avg_weekly_violations":29.4,"avg_enforcement":4.3,"dfs_triggered":True},
-    {"hex_id":"881f19d319fffff","zone_name":"MG Road",             "zone_type":"arterial",    "lat_center":12.9716,"lng_center":77.5946,"dfs_score":83.1,"max_streak_wks":21,"avg_weekly_violations":27.1,"avg_enforcement":6.2,"dfs_triggered":True},
-    {"hex_id":"881f19d32dfffff","zone_name":"Sony World Signal",   "zone_type":"intersection","lat_center":12.9610,"lng_center":77.6387,"dfs_score":71.4,"max_streak_wks":19,"avg_weekly_violations":23.8,"avg_enforcement":3.9,"dfs_triggered":True},
-    {"hex_id":"881f19d325fffff","zone_name":"Indiranagar 100ft",   "zone_type":"arterial",    "lat_center":12.9784,"lng_center":77.6408,"dfs_score":58.3,"max_streak_wks":16,"avg_weekly_violations":19.2,"avg_enforcement":3.1,"dfs_triggered":True},
+    {"hex_id":"881f19d307fffff","zone_name":"Marathahalli Bridge", "zone_type":"intersection","lat_center":12.9565,"lng_center":77.7018,"dfs_score":96.4,"max_streak_wks":24,"avg_weekly_violations":34.2,"avg_enforcement":5.1,"dfs_triggered":True},
+    {"hex_id":"881f19d301fffff","zone_name":"Hebbal Flyover",      "zone_type":"intersection","lat_center":13.0358,"lng_center":77.5976,"dfs_score":91.2,"max_streak_wks":23,"avg_weekly_violations":31.8,"avg_enforcement":4.7,"dfs_triggered":True},
+    {"hex_id":"881f19d311fffff","zone_name":"Majestic Bus Stand",  "zone_type":"metro",       "lat_center":12.9778,"lng_center":77.5727,"dfs_score":87.5,"max_streak_wks":22,"avg_weekly_violations":29.4,"avg_enforcement":4.3,"dfs_triggered":True},
+    {"hex_id":"881f19d319fffff","zone_name":"MG Road",             "zone_type":"arterial",    "lat_center":12.9742,"lng_center":77.6083,"dfs_score":83.1,"max_streak_wks":21,"avg_weekly_violations":27.1,"avg_enforcement":6.2,"dfs_triggered":True},
+    {"hex_id":"881f19d32dfffff","zone_name":"Sony World Signal",   "zone_type":"intersection","lat_center":12.9365,"lng_center":77.6277,"dfs_score":71.4,"max_streak_wks":19,"avg_weekly_violations":23.8,"avg_enforcement":3.9,"dfs_triggered":True},
+    {"hex_id":"881f19d325fffff","zone_name":"Indiranagar 100ft",   "zone_type":"arterial",    "lat_center":12.9696,"lng_center":77.6408,"dfs_score":58.3,"max_streak_wks":16,"avg_weekly_violations":19.2,"avg_enforcement":3.1,"dfs_triggered":True},
     {"hex_id":"881f19d337fffff","zone_name":"Koramangala 80ft",    "zone_type":"arterial",    "lat_center":12.9352,"lng_center":77.6245,"dfs_score":38.2,"max_streak_wks":11,"avg_weekly_violations":14.7,"avg_enforcement":2.8,"dfs_triggered":False},
-    {"hex_id":"881f19d339fffff","zone_name":"Brigade Road",        "zone_type":"arterial",    "lat_center":12.9719,"lng_center":77.5937,"dfs_score":22.1,"max_streak_wks":7, "avg_weekly_violations":11.3,"avg_enforcement":2.2,"dfs_triggered":False},
+    {"hex_id":"881f19d339fffff","zone_name":"Brigade Road",        "zone_type":"arterial",    "lat_center":12.9738,"lng_center":77.6074,"dfs_score":22.1,"max_streak_wks":7, "avg_weekly_violations":11.3,"avg_enforcement":2.2,"dfs_triggered":False},
 ]
 
 MOCK_MONTHLY = pd.DataFrame({
@@ -161,62 +161,35 @@ st.markdown("""
 if not using_real:
     st.markdown('<div class="vyuha-alert">⚠️ Running on mock data — generate real data first</div>', unsafe_allow_html=True)
 
-# KPI row
-k1, k2, k3, k4 = st.columns(4)
-k1.metric("Enforcement-Resistant Zones", str(len(resistant_zones)), "require BBMP intervention")
-k2.metric("Avg Fine Processing Time",    f"{scita['avg_processing_days']} days", "= 19.5 days / 468 hrs")
-k3.metric("Re-offend Before Fine Arrives", f"{scita['reoffend_before_fine']}%", "of chronic offenders")
-k4.metric("Effective Deterrence Rate",   f"{scita['effective_deterrence']}%", "← target: 85%")
+tab1, tab2 = st.tabs(["🔴 Deterrence Failure Map & Proposal Builder", "⏱️  SCITA Latency Audit"])
 
-st.markdown("---")
+# Initialize session state for selected zone
+if "selected_zone_name" not in st.session_state:
+    st.session_state["selected_zone_name"] = dfs_data[0]["zone_name"]
 
-tab1, tab2, tab3 = st.tabs(["🔴 Deterrence Failure Map", "⏱️  SCITA Latency Audit", "📝  BBMP Proposal Generator"])
-
+# Initialize session state for generated proposal text
+if "generated_proposal_text" not in st.session_state:
+    st.session_state["generated_proposal_text"] = None
+if "generated_proposal_zone" not in st.session_state:
+    st.session_state["generated_proposal_zone"] = None
+if "is_generating_proposal" not in st.session_state:
+    st.session_state["is_generating_proposal"] = False
 
 # ─────────────────────────────────────────────
-# TAB 1: DFS MAP
+# TAB 1: DFS MAP & CIVIC ANALYST
 # ─────────────────────────────────────────────
 with tab1:
-    col_map, col_panel = st.columns([2.2, 1], gap="medium")
+    col_map, col_panel = st.columns([1.8, 1.2], gap="medium")
 
-    with col_panel:
-        st.markdown("### 🔴 Enforcement-Resistant Zones")
-        st.markdown(f"""
-        <div class="vyuha-danger" style="font-size:0.82rem;margin-bottom:1rem;">
-            <b>{len(resistant_zones)} zones</b> have been flagged as Enforcement-Resistant. 
-            These locations have sustained high violation rates for ≥16 consecutive weeks 
-            <i>despite regular police presence</i>.
-        </div>
-        """, unsafe_allow_html=True)
-
-        for d in dfs_data[:6]:
-            color   = dfs_to_color(d["dfs_score"])
-            trigger = d["dfs_triggered"]
-            badge   = "red" if trigger else "blue"
-            label   = "Enforcement-Resistant" if trigger else "Monitoring"
-            st.markdown(f"""
-            <div class="vyuha-card" style="padding:0.85rem 1rem;margin-bottom:0.5rem;
-                         border-left:4px solid {color};">
-                <div style="display:flex;justify-content:space-between;align-items:start;">
-                    <div>
-                        <div style="font-weight:600;font-size:0.88rem;color:#f1f5f9;">{d['zone_name']}</div>
-                        <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">
-                            {d['max_streak_wks']} wks streak · {d['avg_weekly_violations']:.0f} viol/wk avg
-                        </div>
-                    </div>
-                    <div style="text-align:right;">
-                        <span class="vyuha-badge-{badge}" style="font-size:0.68rem;">{label}</span>
-                        <div style="font-size:0.8rem;font-weight:700;color:{color};margin-top:4px;">{d['dfs_score']:.0f}</div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+    # Get the selected zone stats
+    selected_dfs = next((d for d in dfs_data if d["zone_name"] == st.session_state["selected_zone_name"]), dfs_data[0])
 
     with col_map:
         m2 = folium.Map(
             location=[12.9716, 77.5946], zoom_start=12,
             tiles="CartoDB dark_matter", prefer_canvas=True,
         )
+
         for d in dfs_data:
             color   = dfs_to_color(d["dfs_score"])
             trigger = d["dfs_triggered"]
@@ -228,13 +201,18 @@ with tab1:
                 f"Avg enforcement visits/week: {d['avg_enforcement']:.1f}<br>"
                 f"{'🔴 ENFORCEMENT-RESISTANT' if trigger else '🔵 Monitoring'}"
             )
+            
+            # Highlight the currently selected zone with a larger radius/weight
+            is_selected = d["zone_name"] == selected_dfs["zone_name"]
+            
             folium.CircleMarker(
                 location=[d["lat_center"], d["lng_center"]],
-                radius=24 + d["dfs_score"] / 8,
-                color=color, fill=True, fill_color=color,
-                fill_opacity=0.4 if trigger else 0.15,
-                weight=3 if trigger else 1,
-                dash_array=None if trigger else "5,5",
+                radius=(30 + d["dfs_score"] / 6) if is_selected else (20 + d["dfs_score"] / 8),
+                color="#facc15" if is_selected else color,
+                fill=True,
+                fill_color="#facc15" if is_selected else color,
+                fill_opacity=0.6 if is_selected else (0.4 if trigger else 0.15),
+                weight=5 if is_selected else (3 if trigger else 1),
                 tooltip=folium.Tooltip(tooltip, sticky=True),
             ).add_to(m2)
 
@@ -242,12 +220,237 @@ with tab1:
                 folium.Marker(
                     location=[d["lat_center"], d["lng_center"]],
                     icon=folium.DivIcon(
-                        html=f'<div style="font-size:12px;text-align:center;">🔴</div>',
+                        html=f'<div style="font-size:14px;text-align:center;font-weight:bold;color:{"#facc15" if is_selected else "red"};">🔴</div>',
                         icon_size=(16,16), icon_anchor=(8,8),
                     ),
                 ).add_to(m2)
 
-        st_folium(m2, width=None, height=560, returned_objects=[])
+        # Render Folium map and capture clicks
+        map_data = st_folium(
+            m2, width=None, height=520, key="folium_map",
+            returned_objects=["last_object_clicked"]
+        )
+
+        # Detect click and update selection
+        if map_data and map_data.get("last_object_clicked"):
+            clicked = map_data["last_object_clicked"]
+            clicked_lat = clicked.get("lat")
+            clicked_lng = clicked.get("lng")
+            
+            # Find closest zone
+            closest_zone = None
+            min_dist = float("inf")
+            for d in dfs_data:
+                dist = (d["lat_center"] - clicked_lat)**2 + (d["lng_center"] - clicked_lng)**2
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_zone = d
+            
+            # If click was very close, select this zone
+            if closest_zone and min_dist < 0.001:
+                if st.session_state["selected_zone_name"] != closest_zone["zone_name"]:
+                    st.session_state["selected_zone_name"] = closest_zone["zone_name"]
+                    st.session_state["generated_proposal_text"] = None
+                    st.rerun()
+
+    with col_panel:
+        st.markdown(f"### 📊 Civic Analyst: {selected_dfs['zone_name']}")
+        
+        # Dropdown selection as a backup/alternative
+        all_zone_names = [d["zone_name"] for d in dfs_data]
+        selected_index = all_zone_names.index(selected_dfs["zone_name"])
+        dropdown_selection = st.selectbox(
+            "Select Zone",
+            all_zone_names,
+            index=selected_index,
+            key="zone_dropdown"
+        )
+        if dropdown_selection != selected_dfs["zone_name"]:
+            st.session_state["selected_zone_name"] = dropdown_selection
+            st.session_state["generated_proposal_text"] = None
+            st.rerun()
+
+        # Zone metadata card
+        trigger = selected_dfs["dfs_triggered"]
+        badge_style = "vyuha-badge-red" if trigger else "vyuha-badge-blue"
+        badge_label = "Enforcement-Resistant" if trigger else "Monitoring"
+        color = dfs_to_color(selected_dfs["dfs_score"])
+        
+        st.markdown(f"""
+        <div class="vyuha-card" style="border-left:4px solid {color}; padding: 1rem; margin-bottom: 0.8rem;">
+            <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 0.5rem;">
+                <span class="{badge_style}" style="font-size:0.75rem;">{badge_label}</span>
+                <span style="font-weight:700; color:{color}; font-size:1.1rem;">DFS: {selected_dfs['dfs_score']:.1f}</span>
+            </div>
+            <div style="font-size:0.85rem; color:#94a3b8; line-height: 1.4;">
+                • <b>Enforcement Streak:</b> {selected_dfs['max_streak_wks']} weeks without improvement<br>
+                • <b>Avg Violations:</b> {selected_dfs['avg_weekly_violations']:.1f} / week<br>
+                • <b>Avg Enforcement Visits:</b> {selected_dfs['avg_enforcement']:.1f} / week<br>
+                • <b>Trend Status:</b> {selected_dfs.get('improvement_status', 'Stagnant')}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 1. Calculate violation type distribution for this zone from the raw df if available
+        violation_dist = {}
+        try:
+            df_raw = pd.read_parquet(os.path.join(ROOT, "data/processed/violations.parquet"))
+            zone_df = df_raw[df_raw["zone_name"] == selected_dfs["zone_name"]]
+            if not zone_df.empty:
+                import ast
+                counts = {}
+                total = 0
+                for val in zone_df["violation_type"]:
+                    if not isinstance(val, str):
+                        continue
+                    try:
+                        if val.startswith("[") and val.endswith("]"):
+                            items = ast.literal_eval(val)
+                        else:
+                            items = [val]
+                    except Exception:
+                        items = [val]
+                    for item in items:
+                        item = item.strip().upper()
+                        counts[item] = counts.get(item, 0) + 1
+                        total += 1
+                if total > 0:
+                    violation_dist = {k: round((v / total) * 100, 1) for k, v in counts.items()}
+                    violation_dist = dict(sorted(violation_dist.items(), key=lambda x: x[1], reverse=True))
+        except Exception:
+            pass
+
+        # 2. Infra Problem Detected display
+        st.markdown("<p style='font-size:0.8rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;margin-bottom:0.4rem;'>Primary Infrastructure Gap</p>", unsafe_allow_html=True)
+        if violation_dist:
+            top_offense = list(violation_dist.keys())[0]
+            top_pct = violation_dist[top_offense]
+            
+            # Map top offense to structural gap description
+            gap_desc = "General capacity deficit."
+            if "FOOTPATH" in top_offense:
+                gap_desc = f"🚨 <b>Footpath Encroachment</b> ({top_pct}%): Footpaths lack physical barriers, causing vehicles to mount and park on sidewalks."
+            elif "BUS" in top_offense:
+                gap_desc = f"🚌 <b>Bus Stop Obstruction</b> ({top_pct}%): Lack of dedicated bus pull-out bays causes buses to block lanes and vehicles to encroach."
+            elif "CROSSING" in top_offense or "JUNCTION" in top_offense or "SIGNAL" in top_offense:
+                gap_desc = f"🚦 <b>Junction Geometry Deficit</b> ({top_pct}%): Lack of intersection clearance markers (yellow grid boxes) and corner bulb-outs."
+            elif "WRONG" in top_offense or "NO PARKING" in top_offense:
+                gap_desc = f"🚗 <b>Parking Capacity Deficit</b> ({top_pct}%): Absence of demarcated on-street slots and loading bays leads to unregulated double-parking."
+            
+            st.markdown(f"<div style='font-size:0.85rem;color:#e2e8f0;background:#1e293b;padding:0.7rem 0.9rem;border-radius:8px;border:1px solid #334155;margin-bottom:0.8rem;'>{gap_desc}</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div style='font-size:0.85rem;color:#94a3b8;margin-bottom:0.8rem;'>No historical violation distribution data available.</div>", unsafe_allow_html=True)
+
+        # 3. Satellite image display
+        st.markdown("<p style='font-size:0.8rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;margin-bottom:0.4rem;'>Satellite Analysis Frame</p>", unsafe_allow_html=True)
+        
+        # Load and display satellite image bytes
+        with st.spinner("📡 Stitching keyless satellite tiles..."):
+            from vyuha.satellite_agent import fetch_satellite_image
+            img_bytes = fetch_satellite_image(selected_dfs["lat_center"], selected_dfs["lng_center"])
+            
+        if img_bytes:
+            st.image(img_bytes, caption=f"Stitched Satellite Frame (Esri keyless)", use_column_width=True)
+        else:
+            st.markdown('<div class="vyuha-alert" style="margin-top:0;">⚠️ Satellite imagery fetch failed</div>', unsafe_allow_html=True)
+
+        # 4. Generate Proposal Trigger
+        generate_btn = st.button("🤖 Generate BBMP Infrastructure Brief", type="primary", use_container_width=True)
+
+        if generate_btn:
+            st.session_state["is_generating_proposal"] = True
+            st.session_state["generated_proposal_zone"] = selected_dfs["zone_name"]
+            
+            with st.spinner("✍️ Compiling OSM data + satellite frame analysis..."):
+                try:
+                    from dotenv import load_dotenv
+                    load_dotenv()
+                    import google.generativeai as genai
+                    api_key = os.getenv("GEMINI_API_KEY", "")
+                    if not api_key or api_key == "your_gemini_api_key_here":
+                        raise ValueError("No API key")
+                        
+                    genai.configure(api_key=api_key)
+                    model = genai.GenerativeModel("gemini-2.5-flash")
+                    
+                    dist_text = ""
+                    if violation_dist:
+                        dist_lines = "\n".join(f"  - {k}: {v}%" for k, v in violation_dist.items())
+                        dist_text = f"\nHistorical BTP Violation Distribution:\n{dist_lines}\n"
+
+                    prompt = f"""You are a civic infrastructure analyst working for BBMP (Bruhat Bengaluru Mahanagara Palike).
+
+A zone called "{selected_dfs['zone_name']}" in Bengaluru has been flagged as Enforcement-Resistant by the Vyuha AI system:
+- DFS Score: {selected_dfs['dfs_score']:.1f}/100
+- {selected_dfs['max_streak_wks']} consecutive weeks of high violations despite enforcement
+- Average {selected_dfs['avg_weekly_violations']:.0f} violations/week
+- Average {selected_dfs['avg_enforcement']:.0f} enforcement visits/week
+- Zone type: {selected_dfs['zone_type']}
+{dist_text}
+Perform a data-driven structural assessment based entirely on the POI context and the "Historical BTP Violation Distribution" listed above.
+
+Tailor your recommended physical interventions directly to the predominant offense types observed in the data:
+- For 'PARKING ON FOOTPATH' or sidewalk offenses: Propose bollard installation, elevated curbs, and footpath widening.
+- For 'WRONG PARKING', 'NO PARKING', or 'PARKING IN A MAIN ROAD': Propose designated loading/unloading bays, parallel parking slots (demarcated with paint), or vertical regulatory signage.
+- For 'PARKING NEAR BUS STOP' or 'PARKING NEAR ROAD CROSSING': Propose bus bay extensions, junction corner clearance (bulb-outs), or road markings like yellow grid boxes.
+- For non-parking violations (like number plate or helmet violations): Propose street lighting upgrades and ANPR camera mounts.
+
+Generate a formal, structured BBMP Infrastructure Intervention Brief in markdown format. Include:
+1. Zone summary and evidence (explaining how the BTP offense distribution relates to the layout/POIs)
+2. Why police enforcement alone is insufficient (reference the numbers)
+3. 3-4 specific physical interventions with estimated costs in INR and expected impact, tailored to the predominant BTP violation types
+4. Expected violation reduction percentage
+
+Be specific, professional, and reference Bengaluru civic infrastructure standards."""
+
+                    response = model.generate_content(prompt)
+                    st.session_state["generated_proposal_text"] = response.text
+                except Exception as e:
+                    # Fallback to mock brief
+                    mock_brief = MOCK_PROPOSALS.get(
+                        selected_dfs["zone_name"],
+                        MOCK_PROPOSALS["Marathahalli Bridge"]
+                    )["proposal"]
+                    st.session_state["generated_proposal_text"] = mock_brief
+
+    # Render proposal underneath map/panel if generated
+    if st.session_state["generated_proposal_text"] and st.session_state["generated_proposal_zone"] == selected_dfs["zone_name"]:
+        st.markdown("---")
+        st.markdown("### 📄 Generated BBMP Proposal")
+        
+        with st.container():
+            st.markdown(f"""
+            <div class="vyuha-card" style="border-left:4px solid #a855f7; margin-bottom: 1rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <div style="font-size:0.7rem;color:#a855f7;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">
+                            BBMP Infrastructure Brief · Auto-Generated
+                        </div>
+                        <div style="font-size:1.1rem;font-weight:700;color:#f8fafc;margin-top:0.2rem;">
+                            {selected_dfs['zone_name']}
+                        </div>
+                    </div>
+                    <span class="vyuha-badge-red">DFS Score: {selected_dfs['dfs_score']:.0f}</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown(st.session_state["generated_proposal_text"])
+            
+            # Action buttons
+            col_dl1, col_dl2, col_dl3 = st.columns(3)
+            with col_dl1:
+                st.download_button(
+                    "📄 Download as .md",
+                    data=st.session_state["generated_proposal_text"],
+                    file_name=f"BBMP_Brief_{selected_dfs['zone_name'].replace(' ', '_')}.md",
+                    mime="text/markdown",
+                    use_container_width=True,
+                )
+            with col_dl2:
+                st.button("📨 Send to BBMP Portal (mock)", use_container_width=True, type="secondary")
+            with col_dl3:
+                st.button("📊 Add to Civic Report (mock)", use_container_width=True, type="secondary")
 
 
 # ─────────────────────────────────────────────
@@ -279,24 +482,15 @@ with tab2:
         st.markdown("#### 📉 Processing Time Trend (2024)")
         fig1 = go.Figure()
         fig1.add_trace(go.Scatter(
-            x=monthly["month"],
-            y=monthly["avg_processing_days"],
-            mode="lines+markers",
-            name="Avg Processing Days",
-            line=dict(color="#f59e0b", width=3),
-            marker=dict(size=8, color="#f59e0b", line=dict(color="#0a0d14", width=2)),
-            fill="tozeroy",
-            fillcolor="rgba(245,158,11,0.08)",
+            x=monthly["month"], y=monthly["avg_processing_days"],
+            mode="lines+markers", name="Latency (Days)",
+            line=dict(color="#f43f5e", width=3),
+            marker=dict(size=8, color="#1e0a0a", line=dict(color="#f43f5e", width=2)),
         ))
-        fig1.add_hline(
-            y=19.5, line_dash="dash", line_color="#ef4444",
-            annotation_text="19.5d avg (468 hrs)", annotation_position="right",
-            annotation_font_color="#ef4444"
-        )
         fig1.update_layout(
             height=300, paper_bgcolor="#0a0d14", plot_bgcolor="#0a0d14",
             font=dict(color="#94a3b8", family="Inter"),
-            margin=dict(l=20, r=60, t=20, b=20),
+            margin=dict(l=20, r=20, t=20, b=20),
             xaxis=dict(gridcolor="#1e2a3a", color="#64748b"),
             yaxis=dict(gridcolor="#1e2a3a", color="#64748b", title="Days"),
             showlegend=False,
@@ -352,129 +546,5 @@ with tab2:
             <div style="font-size:1.5rem;">📬</div>
             <div style="font-weight:700;color:#a855f7;margin-top:0.4rem;">Day 19.5</div>
             <div style="font-size:0.78rem;color:#94a3b8;margin-top:0.3rem;">Fine notice finally arrives. Offender has re-violated 3× by now.</div>
-        </div>
     </div>
     """, unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────────
-# TAB 3: BBMP PROPOSAL GENERATOR
-# ─────────────────────────────────────────────
-with tab3:
-    st.markdown("""
-    <h3 style="font-size:1.1rem;color:#f8fafc;margin-bottom:0.3rem;">
-        📝 Agentic BBMP Proposal Generator
-    </h3>
-    <p style="color:#64748b;font-size:0.84rem;margin-bottom:1rem;">
-        Select an Enforcement-Resistant zone. Vyuha cross-references it with OpenStreetMap 
-        infrastructure data and auto-generates a structured civic intervention brief for the BBMP.
-    </p>
-    """, unsafe_allow_html=True)
-
-    col_sel, col_meta = st.columns([2, 1])
-
-    with col_sel:
-        zone_selected = st.selectbox(
-            "Select Enforcement-Resistant Zone",
-            [d["zone_name"] for d in dfs_data if d["dfs_triggered"]],
-        )
-
-    selected_dfs = next((d for d in dfs_data if d["zone_name"] == zone_selected), dfs_data[0])
-
-    with col_meta:
-        st.markdown(f"""
-        <div class="vyuha-card" style="padding:0.8rem 1rem;margin-top:0.3rem;">
-            <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;">Zone Metadata</div>
-            <div style="margin-top:0.5rem;font-size:0.82rem;color:#94a3b8;">
-                DFS Score: <b style="color:#a855f7;">{selected_dfs['dfs_score']:.1f}</b><br>
-                Streak: {selected_dfs['max_streak_wks']} weeks<br>
-                Type: {selected_dfs['zone_type'].title()}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    generate_btn = st.button("🤖 Generate BBMP Intervention Brief", type="primary")
-
-    if generate_btn or zone_selected:
-        # Try real LLM, fall back to pre-written mock
-        proposal_text = None
-        using_llm     = False
-
-        if generate_btn:
-            with st.spinner("🔍 Fetching OSM infrastructure data... then drafting proposal with Gemini..."):
-                try:
-                    from dotenv import load_dotenv
-                    load_dotenv()
-                    import google.generativeai as genai
-                    api_key = os.getenv("GEMINI_API_KEY", "")
-                    if not api_key or api_key == "your_gemini_api_key_here":
-                        raise ValueError("No API key")
-                    genai.configure(api_key=api_key)
-                    model = genai.GenerativeModel("gemini-1.5-flash")
-                    prompt = f"""You are a civic infrastructure analyst working for BBMP (Bruhat Bengaluru Mahanagara Palike).
-
-A zone called "{zone_selected}" in Bengaluru has been flagged as Enforcement-Resistant by the Vyuha AI system:
-- DFS Score: {selected_dfs['dfs_score']:.1f}/100
-- {selected_dfs['max_streak_wks']} consecutive weeks of high violations despite enforcement
-- Average {selected_dfs['avg_weekly_violations']:.0f} violations/week
-- Average {selected_dfs['avg_enforcement']:.0f} enforcement visits/week
-- Zone type: {selected_dfs['zone_type']}
-
-Generate a formal, structured BBMP Infrastructure Intervention Brief in markdown format. Include:
-1. Zone summary and evidence
-2. Why police enforcement alone is insufficient (reference the numbers)
-3. 3-4 specific physical interventions with estimated costs in INR and expected impact
-4. Expected violation reduction percentage
-
-Be specific, professional, and reference Bengaluru civic infrastructure standards."""
-
-                    response     = model.generate_content(prompt)
-                    proposal_text = response.text
-                    using_llm    = True
-                except Exception as e:
-                    pass
-
-        if not proposal_text:
-            proposal_text = MOCK_PROPOSALS.get(
-                zone_selected,
-                MOCK_PROPOSALS["Marathahalli Bridge"]
-            )["proposal"]
-
-        if using_llm:
-            st.markdown('<div class="vyuha-success">✨ Generated with Gemini 1.5 Flash · Cross-referenced with OpenStreetMap</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="vyuha-alert">⚠️ Using pre-built proposal — add GEMINI_API_KEY to .env for live generation</div>', unsafe_allow_html=True)
-
-        st.markdown("---")
-        # Render proposal in a styled card
-        with st.container():
-            st.markdown(f"""
-            <div class="vyuha-card" style="border-left:4px solid #a855f7;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-                    <div>
-                        <div style="font-size:0.7rem;color:#a855f7;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">
-                            BBMP Infrastructure Brief · Auto-Generated
-                        </div>
-                        <div style="font-size:1rem;font-weight:700;color:#f8fafc;margin-top:0.2rem;">
-                            {zone_selected}
-                        </div>
-                    </div>
-                    <span class="vyuha-badge-red">DFS: {selected_dfs['dfs_score']:.0f}</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            st.markdown(proposal_text)
-
-        col_dl1, col_dl2, col_dl3 = st.columns(3)
-        with col_dl1:
-            st.download_button(
-                "📄 Download as .md",
-                data=proposal_text,
-                file_name=f"BBMP_Brief_{zone_selected.replace(' ', '_')}.md",
-                mime="text/markdown",
-                use_container_width=True,
-            )
-        with col_dl2:
-            st.button("📨 Send to BBMP Portal (mock)", use_container_width=True, type="secondary")
-        with col_dl3:
-            st.button("📊 Add to Civic Report", use_container_width=True, type="secondary")
