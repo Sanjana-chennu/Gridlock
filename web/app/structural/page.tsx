@@ -433,6 +433,31 @@ export default function StructuralPolicyPage() {
             </div>
           </div>
 
+          {bbmpZone && (
+            <div className="card" style={{ padding: 24, marginBottom: 20 }}>
+              <h4 style={{ fontSize: 13, fontWeight: 700, color: "#64748b", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                📡 Satellite Analysis Frame
+              </h4>
+              <div style={{ position: "relative", width: "100%", height: 320, background: "#f3f4f6", borderRadius: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #e5e5e5" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img 
+                  src={`http://localhost:8000/api/bbmp/image?zone=${encodeURIComponent(bbmpZone)}`}
+                  alt={`Satellite Map of ${bbmpZone}`}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                    const fallbackEl = document.getElementById("satellite-fallback");
+                    if (fallbackEl) fallbackEl.style.display = "flex";
+                  }}
+                />
+                <div id="satellite-fallback" style={{ display: "none", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#64748b", fontSize: 13 }}>
+                  <span>⚠️ Satellite imagery offline or API key missing</span>
+                  <span style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Check your MAPPLS_API_KEY / Esri fallback connection</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {proposal && (
             <div>
               {proposalSource === "llm" && <div className="alert-success" style={{ marginBottom: 16 }}>✨ Generated with Gemini AI</div>}
