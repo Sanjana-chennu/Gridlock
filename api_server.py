@@ -235,7 +235,10 @@ def get_scita():
     """SCITA latency audit — processing delay and deterrence gap stats."""
     monthly = scita_data["monthly_trend"]
     if hasattr(monthly, "to_dict"):
-        monthly_list = monthly.fillna(0).to_dict(orient="records")
+        monthly_copied = monthly.copy()
+        if "month" in monthly_copied.columns:
+            monthly_copied["month"] = monthly_copied["month"].astype(str)
+        monthly_list = monthly_copied.fillna(0).to_dict(orient="records")
     else:
         monthly_list = monthly
 

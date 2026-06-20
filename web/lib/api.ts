@@ -151,7 +151,7 @@ export async function predictASTraM(params: {
   });
   if (!res.ok) throw new Error("Failed to run ASTraM prediction");
   const data = await res.json();
-  return { data };
+  return { data: data.data };
 }
 
 export async function getDFS(): Promise<{ data: DFSZone[] }> {
@@ -161,7 +161,7 @@ export async function getDFS(): Promise<{ data: DFSZone[] }> {
   
   // Format trend data into a sparkline array if missing
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const zones = (data.zones || []).map((z: any) => ({
+  const zones = (data.data || []).map((z: any) => ({
     ...z,
     trend: z.trend || Array.from({ length: 12 }, () => Math.floor(Math.random() * 50) + 10),
   }));
@@ -173,10 +173,11 @@ export async function getSCITA(): Promise<{ data: SCITAData }> {
   const res = await fetch(`${API_BASE}/api/scita`);
   if (!res.ok) throw new Error("Failed to fetch SCITA latency data");
   const data = await res.json();
+  const scitaObj = data.data || {};
 
   // Rename monthly list fields to match the recharts keys (avg_days)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const monthly = (data.monthly || []).map((m: any) => ({
+  const monthly = (scitaObj.monthly || []).map((m: any) => ({
     month: m.month,
     avg_days: m.avg_processing_days || m.avg_days || 19.5,
     violations: m.violations || 0,
@@ -184,7 +185,7 @@ export async function getSCITA(): Promise<{ data: SCITAData }> {
   }));
 
   // Re-map delay distribution if available
-  const delay_distribution = data.delay_distribution || [
+  const delay_distribution = scitaObj.delay_distribution || [
     { bucket: "0-5 Days", count: 120 },
     { bucket: "6-10 Days", count: 450 },
     { bucket: "11-15 Days", count: 890 },
@@ -195,9 +196,9 @@ export async function getSCITA(): Promise<{ data: SCITAData }> {
 
   return {
     data: {
-      avg_processing_days: data.avg_processing_days || 19.5,
-      reoffend_before_fine: data.reoffend_before_fine || 79.5,
-      effective_deterrence: data.effective_deterrence || 38.4,
+      avg_processing_days: scitaObj.avg_processing_days || 19.5,
+      reoffend_before_fine: scitaObj.reoffend_before_fine || 79.5,
+      effective_deterrence: scitaObj.effective_deterrence || 38.4,
       monthly,
       delay_distribution,
     },
@@ -228,5 +229,5 @@ export async function getAstramAudit(zoneName: string): Promise<{ data: AstramAu
   const res = await fetch(`${API_BASE}/api/astram/audit?zone=${encodeURIComponent(zoneName)}`);
   if (!res.ok) throw new Error("Failed to fetch ASTraM audit");
   const data = await res.json();
-  return { data };
+  return { data: data.data };
 }
