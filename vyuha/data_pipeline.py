@@ -8,8 +8,7 @@ import numpy as np
 import os
 
 DATA_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "data", "synthetic",
-    "jan to may police violation_anonymized791b166.csv"
+    os.path.dirname(__file__), "..", "data", "violations.csv"
 )
 
 ZONE_TYPE_MAP = {

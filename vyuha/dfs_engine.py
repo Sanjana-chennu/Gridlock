@@ -69,6 +69,7 @@ def compute_dfs(df: pd.DataFrame) -> pd.DataFrame:
             "avg_enforcement":       round(grp["enforcement_visits"].mean(), 1),
             "violation_slope":       round(slope, 3),
             "improvement_status":    improvement_status,
+            "trend":                 [int(v) for v in grp["violations"].values],
         })
 
     dfs_df = pd.DataFrame(results)

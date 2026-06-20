@@ -74,13 +74,13 @@ def get_hexes(n: int = 20):
         "hex_id","zone_name","zone_type","crs","lat_center","lng_center",
         "violation_count","chronic_vehicles","peak_violations","rejection_count","rank"
     ]].rename(columns={"lat_center":"lat","lng_center":"lng","violation_count":"violations"})
-    return {"hexes": top.to_dict(orient="records")}
+    return {"data": top.to_dict(orient="records"), "source": "engine"}
 
 
 @app.get("/api/routes")
 def get_routes():
     """3 optimised patrol routes (greedy TSP on top CRS hexes)."""
-    return {"routes": routes}
+    return {"data": routes, "source": "engine"}
 
 
 @app.get("/api/chronic")
@@ -98,7 +98,7 @@ def get_chronic(zone: str = None, n: int = 10):
     cols = ["registry_rank","vehicle_number","total_violations",
             "recent_30d","days_since_last","unique_zones","offender_score"]
     result = result[[c for c in cols if c in result.columns]].fillna(0)
-    return {"offenders": result.to_dict(orient="records"), "total_top1pct": int(len(top1pct))}
+    return {"data": result.to_dict(orient="records"), "source": "engine", "count": int(len(top1pct))}
 
 
 class AstramRequest(BaseModel):
@@ -127,19 +127,22 @@ def predict_astram(req: AstramRequest):
         if req.hour < 6 or req.hour > 22: reasons.append("🕐 Unusual timestamp may trigger review")
         if not reasons: reasons.append("✅ No major issues detected")
         return {
-            "risk_score": round(risk, 3),
-            "risk_pct": f"{risk*100:.0f}%",
-            "verdict": (
-                "🔴 HIGH RISK — Do not submit yet" if risk > 0.65 else
-                "🟡 MEDIUM RISK — Review before submitting" if risk > 0.35 else
-                "🟢 LOW RISK — Good to submit"
-            ),
-            "reasons": reasons,
-            "reason_probabilities": {
-                "low_quality": lq_risk,
-                "night": night_risk,
-                "no_junction": nj_risk
-            }
+            "data": {
+                "risk_score": round(risk, 3),
+                "risk_pct": f"{risk*100:.0f}%",
+                "verdict": (
+                    "🔴 HIGH RISK — Do not submit yet" if risk > 0.65 else
+                    "🟡 MEDIUM RISK — Review before submitting" if risk > 0.35 else
+                    "🟢 LOW RISK — Good to submit"
+                ),
+                "reasons": reasons,
+                "reason_probabilities": {
+                    "low_quality": lq_risk,
+                    "night": night_risk,
+                    "no_junction": nj_risk
+                }
+            },
+            "source": "engine"
         }
     else:
         from vyuha.astram_classifier import predict_rejection_risk
@@ -147,7 +150,7 @@ def predict_astram(req: AstramRequest):
             astram_model, req.photo_quality, req.hour, req.zone_type,
             req.violation_type, req.criticality, req.day_of_week
         )
-        return result
+        return {"data": result, "source": "engine"}
 
 
 
@@ -161,12 +164,15 @@ def get_astram_audit(zone: str):
     total_rej = len(zone_df)
     if total_rej == 0:
         return {
-            "zone": zone,
-            "total_rejected": 0,
-            "low_quality": 0.0,
-            "night": 0.0,
-            "no_junction": 0.0,
-            "actionable_insight": "No rejections recorded for this zone."
+            "data": {
+                "zone": zone,
+                "total_rejected": 0,
+                "low_quality": 0.0,
+                "night": 0.0,
+                "no_junction": 0.0,
+                "actionable_insight": "No rejections recorded for this zone."
+            },
+            "source": "engine"
         }
         
     pq = (zone_df["photo_quality_score"] < 0.65).mean() * 100 if "photo_quality_score" in zone_df.columns else 22.2
@@ -189,12 +195,15 @@ def get_astram_audit(zone: str):
         tip = "Reinforce GPS check-ins and require double-checking coordinates on the ASTraM app."
 
     return {
-        "zone": zone,
-        "total_rejected": total_rej,
-        "low_quality": round(pq, 1),
-        "night": round(night, 1),
-        "no_junction": round(no_junc, 1),
-        "actionable_insight": tip
+        "data": {
+            "zone": zone,
+            "total_rejected": total_rej,
+            "low_quality": round(pq, 1),
+            "night": round(night, 1),
+            "no_junction": round(no_junc, 1),
+            "actionable_insight": tip
+        },
+        "source": "engine"
     }
 
 
@@ -207,7 +216,7 @@ def get_dfs():
     """Deterrence Failure Scores for all hex zones."""
     cols = ["hex_id","zone_name","zone_type","lat_center","lng_center",
             "dfs_score","max_streak_wks","dfs_triggered",
-            "avg_weekly_violations","avg_enforcement"]
+            "avg_weekly_violations","avg_enforcement", "trend"]
     available = [c for c in cols if c in dfs_data.columns]
     out = dfs_data[available].rename(
         columns={"lat_center":"lat","lng_center":"lng"}
@@ -215,9 +224,9 @@ def get_dfs():
     resistant = out[out["dfs_triggered"]].to_dict(orient="records")
     all_zones  = out.to_dict(orient="records")
     return {
-        "zones": all_zones,
-        "resistant_zones": resistant,
-        "total_resistant": len(resistant),
+        "data": all_zones,
+        "source": "engine",
+        "count": len(resistant)
     }
 
 
@@ -231,10 +240,13 @@ def get_scita():
         monthly_list = monthly
 
     return {
-        "avg_processing_days":  scita_data["avg_processing_days"],
-        "reoffend_before_fine": scita_data["reoffend_before_fine"],
-        "effective_deterrence": scita_data["effective_deterrence"],
-        "monthly":              monthly_list,
+        "data": {
+            "avg_processing_days":  scita_data["avg_processing_days"],
+            "reoffend_before_fine": scita_data["reoffend_before_fine"],
+            "effective_deterrence": scita_data["effective_deterrence"],
+            "monthly":              monthly_list,
+        },
+        "source": "engine"
     }
 
 
@@ -305,14 +317,16 @@ def generate_bbmp(req: BbmpRequest):
         image_cache[req.zone] = result["image_bytes"]
 
     return {
-        "zone":      req.zone,
-        "proposal":  result["proposal"],
-        "source":    result["source"],
-        "dfs_score": zone_stats["dfs_score"],
-        "pois":      result["pois"],
-        "has_image": result["image_bytes"] is not None,
-        "violation_distribution": zone_stats["violation_distribution"],
-        "improvement_status": zone_stats["improvement_status"],
+        "data": {
+            "zone":      req.zone,
+            "proposal":  result["proposal"],
+            "dfs_score": zone_stats["dfs_score"],
+            "pois":      result["pois"],
+            "has_image": result["image_bytes"] is not None,
+            "violation_distribution": zone_stats["violation_distribution"],
+            "improvement_status": zone_stats["improvement_status"],
+        },
+        "source": result["source"]
     }
 
 

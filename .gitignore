@@ -1,3 +1,8 @@
+# Web frontend
+web/node_modules/
+web/.next/
+web/out/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -29,6 +34,8 @@ env/
 # Data files (large — don't commit raw/processed data)
 data/processed/
 data/raw/
+data/api_*.json
+data/violations.csv
 
 # Trained models
 models/*.pkl

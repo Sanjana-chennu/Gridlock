@@ -96,8 +96,8 @@ def generate_patrol_routes(
             "color":       colors[i],
             "label":       labels[i],
             "waypoints":   ordered,
-            "total_crs":   round(batch["crs"].sum(), 1),
-            "crs":         round(batch["crs"].sum(), 1),
+            "total_crs":   float(round(batch["crs"].sum(), 1)),
+            "crs":         float(round(batch["crs"].sum(), 1)),
             "est_duration":f"{len(ordered) * 12}–{len(ordered) * 18} min",
             "time":        f"{len(ordered) * 12}–{len(ordered) * 18} min",
         })
@@ -126,10 +126,10 @@ def _greedy_tsp(depot_lat, depot_lng, batch: pd.DataFrame) -> List[Dict]:
             "hex_id":    nearest["hex_id"],
             "zone_name": nearest["zone_name"],
             "zone":      nearest["zone_name"],
-            "lat":       nearest["lat_center"],
-            "lng":       nearest["lng_center"],
-            "crs":       nearest["crs"],
-            "violations":nearest["violation_count"],
+            "lat":       float(nearest["lat_center"]),
+            "lng":       float(nearest["lng_center"]),
+            "crs":       float(nearest["crs"]),
+            "violations":int(nearest["violation_count"]),
         })
         cur_lat, cur_lng = nearest["lat_center"], nearest["lng_center"]
         remaining = remaining.drop(nearest.name)
