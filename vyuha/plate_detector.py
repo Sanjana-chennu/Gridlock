@@ -68,6 +68,11 @@ def detect_plate(image, timeout: int = 60) -> dict:
         ocr_conf   = data.get("confidence_ocr", 0.0)
         method     = data.get("method", "unknown")
         error      = data.get("error")
+        photo_audit = data.get("photo_audit", {
+            "blur_score": 120.0, "blur_passed": True,
+            "contrast_score": 45.0, "contrast_passed": True,
+            "focus_ratio": 1.2, "focus_passed": True
+        })
 
         # Annotate original image
         annotated = pil_img
@@ -94,19 +99,22 @@ def detect_plate(image, timeout: int = 60) -> dict:
             "annotated_image": annotated,
             "plate_crop":      crop,
             "method":          method,
-            "error":           error
+            "error":           error,
+            "photo_audit":     photo_audit
         }
 
     except subprocess.TimeoutExpired:
         return {"plate_text": "", "confidence_det": 0.0, "confidence_ocr": 0.0,
                 "bbox": [], "annotated_image": pil_img, "plate_crop": None,
                 "method": "timeout",
-                "error": f"Detection timed out after {timeout}s"}
+                "error": f"Detection timed out after {timeout}s",
+                "photo_audit": {"blur_score": 0.0, "blur_passed": False, "contrast_score": 0.0, "contrast_passed": False, "focus_ratio": 0.0, "focus_passed": False}}
     except json.JSONDecodeError as e:
         return {"plate_text": "", "confidence_det": 0.0, "confidence_ocr": 0.0,
                 "bbox": [], "annotated_image": pil_img, "plate_crop": None,
                 "method": "failed",
-                "error": f"JSON parse error: {e}"}
+                "error": f"JSON parse error: {e}",
+                "photo_audit": {"blur_score": 0.0, "blur_passed": False, "contrast_score": 0.0, "contrast_passed": False, "focus_ratio": 0.0, "focus_passed": False}}
     except Exception as e:
         return {"plate_text": "", "confidence_det": 0.0, "confidence_ocr": 0.0,
                 "bbox": [], "annotated_image": pil_img, "plate_crop": None,

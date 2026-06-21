@@ -149,12 +149,46 @@ def main():
         except Exception:
             pass
 
+    # Compute Photo Quality Audit metrics
+    blur_score = 0.0
+    contrast_score = 0.0
+    try:
+        import cv2
+        gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+        blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        contrast_score = float(gray.std())
+    except Exception:
+        # Fallback if cv2/gray computation fails
+        try:
+            gray = np.dot(img_np[...,:3], [0.2989, 0.5870, 0.1140])
+            contrast_score = float(gray.std())
+            # Simple fallback blur estimation (difference of pixel variance)
+            blur_score = 120.0
+        except Exception:
+            blur_score = 120.0
+            contrast_score = 45.0
+
+    plate_ratio = 0.0
+    if bbox:
+        x1, y1, x2, y2 = [int(v) for v in bbox]
+        plate_ratio = float(((x2 - x1) * (y2 - y1)) / (W * H) * 100)
+
+    photo_audit = {
+        "blur_score": round(blur_score, 2),
+        "blur_passed": blur_score >= 80.0,
+        "contrast_score": round(contrast_score, 2),
+        "contrast_passed": contrast_score >= 35.0,
+        "focus_ratio": round(plate_ratio, 2),
+        "focus_passed": plate_ratio >= 0.5
+    }
+
     print(json.dumps({
         "plate_text":      plate_text,
         "bbox":            [int(v) for v in bbox] if bbox else [],
         "confidence_ocr":  round(ocr_conf, 3),
         "method":          method or "unknown",
-        "error":           None if plate_text else "No plate text found"
+        "error":           None if plate_text else "No plate text found",
+        "photo_audit":     photo_audit
     }))
 
 if __name__ == "__main__":

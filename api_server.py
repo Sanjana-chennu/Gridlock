@@ -5,11 +5,11 @@ Serves all ML engine outputs as REST endpoints for the Next.js frontend.
 Run: uvicorn api_server:app --reload --port 8000
 """
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
-import os, sys, pickle
+import os, sys, pickle, base64, io
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -31,12 +31,16 @@ registry   = None
 dfs_data   = None
 scita_data = None
 astram_model = None
+astram_zones = None
 image_cache = {}
+
+
+dfs_distributions = {}
 
 
 @app.on_event("startup")
 def startup():
-    global df, hex_stats, routes, registry, dfs_data, scita_data, astram_model
+    global df, hex_stats, routes, registry, dfs_data, scita_data, astram_model, dfs_distributions, astram_zones
 
     PARQUET = "data/processed/violations.parquet"
     if not os.path.exists(PARQUET):
@@ -55,12 +59,102 @@ def startup():
     dfs_data   = compute_dfs(df_hex)
     scita_data = compute_scita_audit(df)
 
+    # Pre-calculate violation distributions for DFS inspector
+    dfs_distributions = {}
+    if df is not None:
+        import ast
+        for zone, grp in df.groupby("zone_name"):
+            counts = {}
+            total = 0
+            for val in grp["violation_type"]:
+                if not isinstance(val, str):
+                    continue
+                try:
+                    if val.startswith("[") and val.endswith("]"):
+                        items = ast.literal_eval(val)
+                    else:
+                        items = [val]
+                except Exception:
+                    items = [val]
+                for item in items:
+                    item = item.strip().upper()
+                    counts[item] = counts.get(item, 0) + 1
+                    total += 1
+            if total > 0:
+                dist = {k: round((v / total) * 100, 1) for k, v in counts.items()}
+                dfs_distributions[zone] = dict(sorted(dist.items(), key=lambda x: x[1], reverse=True))
+
     MODEL_PATH = "models/astram_classifier.pkl"
     if os.path.exists(MODEL_PATH):
         with open(MODEL_PATH, "rb") as f:
             astram_model = pickle.load(f)
 
-    print(f"✅  Vyuha API ready — {len(df):,} records loaded")
+    # Pre-calculate rejection zones data for all 54 zones
+    astram_zones = []
+    if df is not None:
+        import ast
+        from collections import Counter
+        for zone, grp in df.groupby("zone_name"):
+            total    = len(grp)
+            rejected = int(grp["ticket_rejected"].sum())
+            rate     = round((rejected / total * 100) if total else 0, 2)
+
+            lat = float(grp["lat"].mean())
+            lng = float(grp["lng"].mean())
+
+            rej_grp = grp[grp["ticket_rejected"] == 1]
+            n_rej   = len(rej_grp)
+
+            if n_rej:
+                low_quality = float(
+                    (rej_grp["photo_quality_score"] < 0.65).mean() * 100
+                ) if "photo_quality_score" in rej_grp.columns else 20.0
+                night = float(
+                    (((rej_grp["hour"] < 7) | (rej_grp["hour"] > 20)).mean() * 100)
+                ) if "hour" in rej_grp.columns else 50.0
+                no_junction = float(
+                    (rej_grp["has_junction"] == 0).mean() * 100
+                ) if "has_junction" in rej_grp.columns else 10.0
+            else:
+                low_quality = night = no_junction = 0.0
+
+            # Top violation types among rejected tickets
+            top_viols = []
+            if "violation_type" in rej_grp.columns and n_rej:
+                all_types = []
+                for v in rej_grp["violation_type"].dropna():
+                    try:
+                        parsed = ast.literal_eval(v) if isinstance(v, str) else v
+                        if isinstance(parsed, list):
+                            all_types.extend(parsed)
+                        else:
+                            all_types.append(parsed)
+                    except Exception:
+                        pass
+                if all_types:
+                    top_viols = [t for t, _ in Counter(all_types).most_common(3)]
+
+            # avg photo quality among rejected
+            avg_pq = float(rej_grp["photo_quality_score"].mean()) if n_rej else 0.0
+
+            astram_zones.append({
+                "zone_name":   zone,
+                "lat":         lat,
+                "lng":         lng,
+                "total":       total,
+                "rejected":    rejected,
+                "rate":        rate,
+                "low_quality": round(low_quality, 1),
+                "night":       round(night, 1),
+                "no_junction": round(no_junction, 1),
+                "top_viols":   top_viols,
+                "avg_pq":      round(avg_pq, 3),
+                "source":      "real",
+            })
+
+        astram_zones = sorted(astram_zones, key=lambda x: x["rate"], reverse=True)
+
+    print(f"✅  Vyuha API ready — {len(df):,} records loaded, {len(astram_zones)} audit zones computed")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -154,6 +248,14 @@ def predict_astram(req: AstramRequest):
 
 
 
+@app.get("/api/astram/zones")
+def get_astram_zones():
+    """All 54 real BTP zones with aggregated rejection metrics."""
+    if astram_zones is None:
+        raise HTTPException(status_code=404, detail="Rejection zones data not computed")
+    return {"data": astram_zones, "source": "engine"}
+
+
 @app.get("/api/astram/audit")
 def get_astram_audit(zone: str):
     """Analyze rejections for a specific zone and return attribution percentages."""
@@ -170,15 +272,34 @@ def get_astram_audit(zone: str):
                 "low_quality": 0.0,
                 "night": 0.0,
                 "no_junction": 0.0,
+                "top_viols": [],
                 "actionable_insight": "No rejections recorded for this zone."
-            },
-            "source": "engine"
+              },
+              "source": "engine"
         }
         
     pq = (zone_df["photo_quality_score"] < 0.65).mean() * 100 if "photo_quality_score" in zone_df.columns else 22.2
     night = (((zone_df["hour"] < 7) | (zone_df["hour"] > 20)).mean() * 100) if "hour" in zone_df.columns else 79.7
     no_junc = (zone_df["has_junction"] == 0).mean() * 100 if "has_junction" in zone_df.columns else 0.3
     
+    # Calculate top violation types among rejected tickets
+    top_viols = []
+    if "violation_type" in zone_df.columns:
+        import ast
+        from collections import Counter
+        all_types = []
+        for v in zone_df["violation_type"].dropna():
+            try:
+                parsed = ast.literal_eval(v) if isinstance(v, str) else v
+                if isinstance(parsed, list):
+                    all_types.extend(parsed)
+                else:
+                    all_types.append(parsed)
+            except Exception:
+                pass
+        if all_types:
+            top_viols = [t for t, _ in Counter(all_types).most_common(3)]
+            
     # Actionable tip
     reasons = [
         ("low_quality", pq),
@@ -201,6 +322,7 @@ def get_astram_audit(zone: str):
             "low_quality": round(pq, 1),
             "night": round(night, 1),
             "no_junction": round(no_junc, 1),
+            "top_viols": top_viols,
             "actionable_insight": tip
         },
         "source": "engine"
@@ -221,8 +343,13 @@ def get_dfs():
     out = dfs_data[available].rename(
         columns={"lat_center":"lat","lng_center":"lng"}
     ).fillna(0)
-    resistant = out[out["dfs_triggered"]].to_dict(orient="records")
-    all_zones  = out.to_dict(orient="records")
+    
+    # Attach pre-calculated violation distributions
+    all_zones = out.to_dict(orient="records")
+    for z in all_zones:
+        z["violation_distribution"] = dfs_distributions.get(z["zone_name"], {})
+        
+    resistant = [z for z in all_zones if z["dfs_triggered"]]
     return {
         "data": all_zones,
         "source": "engine",
@@ -335,11 +462,57 @@ def generate_bbmp(req: BbmpRequest):
 
 @app.get("/api/bbmp/image")
 def get_bbmp_image(zone: str):
-    """Serve the cached satellite image for the zone (if fetched successfully)."""
+    """Serve the cached satellite image for the zone, fetching dynamically if needed."""
     img_bytes = image_cache.get(zone)
+    if not img_bytes:
+        zone_row = dfs_data[dfs_data["zone_name"] == zone] if dfs_data is not None else pd.DataFrame()
+        if not zone_row.empty:
+            row = zone_row.iloc[0]
+            from vyuha.satellite_agent import fetch_satellite_image
+            try:
+                img_bytes = fetch_satellite_image(
+                    float(row.get("lat_center", 12.9716)),
+                    float(row.get("lng_center", 77.5946))
+                )
+                if img_bytes:
+                    image_cache[zone] = img_bytes
+            except Exception as e:
+                print(f"Error fetching satellite image dynamically: {e}")
     if not img_bytes:
         raise HTTPException(status_code=404, detail="Image not found or not loaded yet for this zone")
     return Response(content=img_bytes, media_type="image/png")
+@app.post("/api/detect")
+async def api_detect_plate(file: UploadFile = File(...)):
+    """
+    Run YOLOv8 + EasyOCR on an uploaded image file.
+    Returns detected plate text, bbox coordinates, confidence scores, and base64-annotated image.
+    """
+    try:
+        contents = await file.read()
+        from vyuha.plate_detector import detect_plate
+        result = detect_plate(contents)
+        
+        annotated_b64 = ""
+        if result.get("annotated_image") is not None:
+            buf = io.BytesIO()
+            result["annotated_image"].save(buf, format="JPEG", quality=90)
+            annotated_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+            
+        return {
+            "status": "ok",
+            "data": {
+                "plate_text": result.get("plate_text", ""),
+                "confidence_det": float(result.get("confidence_det", 0.0)),
+                "confidence_ocr": float(result.get("confidence_ocr", 0.0)),
+                "bbox": result.get("bbox", []),
+                "method": result.get("method", "failed"),
+                "error": result.get("error"),
+                "annotated_image": f"data:image/jpeg;base64,{annotated_b64}" if annotated_b64 else None,
+                "photo_audit": result.get("photo_audit")
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Plate detection error: {str(e)}")
 
 
 

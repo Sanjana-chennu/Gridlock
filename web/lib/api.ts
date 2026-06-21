@@ -1,7 +1,7 @@
 // 🔌 API Client for Vyuha Intelligence System Frontend
 // Connects React pages to the FastAPI backend running on http://localhost:8000
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export interface HexCell {
   hex_id: string;
@@ -66,6 +66,7 @@ export interface DFSZone {
   avg_weekly_violations: number;
   avg_enforcement: number;
   trend: number[];
+  violation_distribution?: Record<string, number>;
 }
 
 export interface MonthlyTrend {
@@ -102,6 +103,7 @@ export interface AstramAudit {
   low_quality: number;
   night: number;
   no_junction: number;
+  top_viols?: string[];
   actionable_insight: string;
 }
 
@@ -111,14 +113,14 @@ export async function getHexes(): Promise<{ data: HexCell[] }> {
   const res = await fetch(`${API_BASE}/api/hexes`);
   if (!res.ok) throw new Error("Failed to fetch hex cells");
   const data = await res.json();
-  return { data: data.hexes || [] };
+  return { data: data.data || [] };
 }
 
 export async function getRoutes(): Promise<{ data: PatrolRoute[] }> {
   const res = await fetch(`${API_BASE}/api/routes`);
   if (!res.ok) throw new Error("Failed to fetch patrol routes");
   const data = await res.json();
-  return { data: data.routes || [] };
+  return { data: data.data || [] };
 }
 
 export async function getChronic(zone?: string): Promise<{ data: ChronicOffender[] }> {
@@ -126,7 +128,7 @@ export async function getChronic(zone?: string): Promise<{ data: ChronicOffender
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch chronic registry");
   const data = await res.json();
-  return { data: data.offenders || [] };
+  return { data: data.data || [] };
 }
 
 export async function predictASTraM(params: {
@@ -154,11 +156,42 @@ export async function predictASTraM(params: {
   return { data: data.data };
 }
 
+export async function uploadAndDetectPlate(file: File): Promise<{
+  data: {
+    plate_text: string;
+    confidence_det: number;
+    confidence_ocr: number;
+    bbox: number[];
+    method: string;
+    error: string | null;
+    annotated_image: string | null;
+    photo_audit?: {
+      blur_score: number;
+      blur_passed: boolean;
+      contrast_score: number;
+      contrast_passed: boolean;
+      focus_ratio: number;
+      focus_passed: boolean;
+    } | null;
+  };
+}> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API_BASE}/api/detect`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error("Failed to detect plate from uploaded image");
+  const data = await res.json();
+  return { data: data.data };
+}
+
 export async function getDFS(): Promise<{ data: DFSZone[] }> {
   const res = await fetch(`${API_BASE}/api/dfs`);
   if (!res.ok) throw new Error("Failed to fetch DFS zones");
   const data = await res.json();
-  
+
   // Format trend data into a sparkline array if missing
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const zones = (data.data || []).map((z: any) => ({
@@ -215,13 +248,13 @@ export async function generateBBMP(zoneName: string): Promise<{ data: BBMPPropos
   const data = await res.json();
   return {
     data: {
-      zone: data.zone,
-      proposal: data.proposal,
-      dfs_score: data.dfs_score,
-      pois: data.pois,
-      has_image: data.has_image,
+      zone: data.data?.zone || "",
+      proposal: data.data?.proposal || "",
+      dfs_score: data.data?.dfs_score || 0,
+      pois: data.data?.pois || [],
+      has_image: data.data?.has_image || false,
     },
-    source: data.source,
+    source: data.source || "",
   };
 }
 
@@ -231,3 +264,25 @@ export async function getAstramAudit(zoneName: string): Promise<{ data: AstramAu
   const data = await res.json();
   return { data: data.data };
 }
+
+export interface AstramAuditZone {
+  zone_name: string;
+  lat: number;
+  lng: number;
+  total: number;
+  rejected: number;
+  rate: number;
+  low_quality: number;
+  night: number;
+  no_junction: number;
+  top_viols: string[];
+  avg_pq: number;
+}
+
+export async function getAstramZones(): Promise<{ data: AstramAuditZone[] }> {
+  const res = await fetch(`${API_BASE}/api/astram/zones`);
+  if (!res.ok) throw new Error("Failed to fetch ASTraM zones");
+  const data = await res.json();
+  return { data: data.data || [] };
+}
+

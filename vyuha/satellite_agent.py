@@ -214,12 +214,15 @@ def generate_satellite_proposal(
 
     Returns dict with: proposal_text, image_bytes, pois, source
     """
-    if not GEMINI_KEY:
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+
+    if not groq_key and not gemini_key:
         return {
             "proposal": _fallback_proposal(zone_name, zone_stats),
             "image_bytes": None,
             "pois": [],
-            "source": "fallback_no_gemini_key",
+            "source": "fallback_no_api_key",
         }
 
     # Step 1: Satellite image
@@ -232,40 +235,95 @@ def generate_satellite_proposal(
     if pois:
         print(f"      Found {len(pois)} POIs: {', '.join(p['type'] for p in pois[:3])}")
 
-    # Step 3: Gemini Vision
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_KEY)
-        model  = genai.GenerativeModel("gemini-2.5-flash")
-        prompt = build_vision_prompt(zone_name, zone_stats, pois)
+    # Step 3: Analyse with Groq if available
+    if groq_key:
+        try:
+            import base64
+            prompt = build_vision_prompt(zone_name, zone_stats, pois)
+            headers = {
+                "Authorization": f"Bearer {groq_key}",
+                "Content-Type": "application/json"
+            }
+            if image_bytes:
+                img_b64 = base64.b64encode(image_bytes).decode("utf-8")
+                model = "llama-3.2-11b-vision-preview"
+                messages = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
+                        ]
+                    }
+                ]
+                print(f"  🤖 Sending satellite image to Groq Vision ({model})...")
+            else:
+                model = "llama-3.3-70b-versatile"
+                messages = [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+                print(f"  🤖 No image — using Groq text mode ({model})...")
 
-        if image_bytes:
-            # Vision mode — analyse actual satellite image
-            print(f"  🤖 Sending satellite image to Gemini Vision...")
-            image = Image.open(io.BytesIO(image_bytes))
-            response = model.generate_content([prompt, image])
-            source = "gemini_vision_mappls"
-        else:
-            # Text-only mode — use zone data + POIs only
-            print(f"  🤖 No image — using Gemini text mode with POI context...")
-            response = model.generate_content(prompt)
-            source = "gemini_text_mappls_pois"
+            payload = {
+                "model": model,
+                "messages": messages,
+                "temperature": 0.2
+            }
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+            if resp.status_code == 200:
+                res_data = resp.json()
+                proposal_text = res_data["choices"][0]["message"]["content"]
+                return {
+                    "proposal":    proposal_text,
+                    "image_bytes": image_bytes,
+                    "pois":        pois,
+                    "source":      f"groq_{model}",
+                }
+            else:
+                print(f"  ⚠️  Groq API returned error {resp.status_code}: {resp.text}")
+        except Exception as e:
+            print(f"  ⚠️  Groq call failed: {e}")
 
-        return {
-            "proposal":    response.text,
-            "image_bytes": image_bytes,
-            "pois":        pois,
-            "source":      source,
-        }
+    # Step 4: Fallback to Gemini if Groq failed or unconfigured
+    if gemini_key:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=gemini_key)
+            model  = genai.GenerativeModel("gemini-2.5-flash")
+            prompt = build_vision_prompt(zone_name, zone_stats, pois)
 
-    except Exception as e:
-        print(f"  ⚠️  Gemini call failed: {e}")
-        return {
-            "proposal":    _fallback_proposal(zone_name, zone_stats),
-            "image_bytes": image_bytes,
-            "pois":        pois,
-            "source":      "fallback_gemini_error",
-        }
+            if image_bytes:
+                # Vision mode — analyse actual satellite image
+                print(f"  🤖 Sending satellite image to Gemini Vision...")
+                image = Image.open(io.BytesIO(image_bytes))
+                response = model.generate_content([prompt, image])
+                source = "gemini_vision_mappls"
+            else:
+                # Text-only mode — use zone data + POIs only
+                print(f"  🤖 No image — using Gemini text mode with POI context...")
+                response = model.generate_content(prompt)
+                source = "gemini_text_mappls_pois"
+
+            return {
+                "proposal":    response.text,
+                "image_bytes": image_bytes,
+                "pois":        pois,
+                "source":      source,
+            }
+        except Exception as e:
+            print(f"  ⚠️  Gemini call failed: {e}")
+
+    # Final fallback if all failed
+    return {
+        "proposal":    _fallback_proposal(zone_name, zone_stats),
+        "image_bytes": image_bytes,
+        "pois":        pois,
+        "source":      "fallback_api_error",
+    }
 
 
 def _fallback_proposal(zone_name: str, zone_stats: dict) -> str:

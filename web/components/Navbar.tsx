@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Home", icon: "🏠" },
-  { href: "/tactical", label: "Tactical Ops", icon: "⚡" },
-  { href: "/structural", label: "Structural Policy", icon: "🏛️" },
+  { href: "/", label: "Home", icon: "" },
+  { href: "/tactical", label: "Tactical Ops", icon: "" },
+  { href: "/structural", label: "Structural Policy", icon: "" },
 ];
 
 export default function Navbar() {
