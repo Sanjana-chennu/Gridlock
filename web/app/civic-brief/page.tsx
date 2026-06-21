@@ -248,7 +248,7 @@ function CivicBriefContent() {
           {proposal && (
             <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
               <div className="alert-success" style={{ marginBottom: 16, borderLeft: "4px solid #10b981", fontSize: 13 }}>
-                {proposalSource === "llm" ? "Document drafted successfully via Groq AI (Llama 3.3 70B model)" : "API disconnected — mock brief fallback"}
+                {!proposalSource.includes("fallback") ? `Document drafted successfully via AI (${proposalSource})` : "API disconnected — mock brief fallback"}
               </div>
 
               <div className="card" style={{ padding: 24, flex: 1, borderLeft: "4px solid #7c3aed", maxHeight: 420, overflowY: "auto" }}>

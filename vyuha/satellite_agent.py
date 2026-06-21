@@ -235,8 +235,8 @@ def generate_satellite_proposal(
     if pois:
         print(f"      Found {len(pois)} POIs: {', '.join(p['type'] for p in pois[:3])}")
 
-    # Step 3: Analyse with Groq if available
-    if groq_key:
+    # Step 3: Analyse with Groq if available (Text Only)
+    if groq_key and not image_bytes:
         try:
             import base64
             prompt = build_vision_prompt(zone_name, zone_stats, pois)
@@ -244,28 +244,14 @@ def generate_satellite_proposal(
                 "Authorization": f"Bearer {groq_key}",
                 "Content-Type": "application/json"
             }
-            if image_bytes:
-                img_b64 = base64.b64encode(image_bytes).decode("utf-8")
-                model = "llama-3.2-11b-vision-preview"
-                messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
-                        ]
-                    }
-                ]
-                print(f"  🤖 Sending satellite image to Groq Vision ({model})...")
-            else:
-                model = "llama-3.3-70b-versatile"
-                messages = [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
-                print(f"  🤖 No image — using Groq text mode ({model})...")
+            model = "llama-3.3-70b-versatile"
+            messages = [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+            print(f"  🤖 No image — using Groq text mode ({model})...")
 
             payload = {
                 "model": model,
