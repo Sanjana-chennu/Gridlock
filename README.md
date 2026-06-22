@@ -1,3 +1,9 @@
+---
+title: Vyuha Backend
+emoji: 🚦
+sdk: docker
+pinned: false
+---
 # 🚦 Vyuha Intelligence System
 > **AI-Powered Spatial Analytics, ML Quality Control, and Patrol Router for Bengaluru Traffic Police (BTP)**
 
