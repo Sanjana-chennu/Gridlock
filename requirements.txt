@@ -14,3 +14,4 @@ scipy>=1.13.1
 pyarrow>=16.1.0
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
+easyocr>=1.7.1
