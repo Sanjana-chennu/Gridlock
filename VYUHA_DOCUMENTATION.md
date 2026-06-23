@@ -227,15 +227,7 @@ Dashboard:
 http://localhost:3000
 ```
 
----
 
-## Docker Setup
-
-Vyuha supports containerized execution using Docker for consistent deployment across environments.
-
-For complete Docker build and execution instructions: **[View Docker Setup Guide](./DOCKER_SETUP.md)**
-
----
 
 ## 📂 Repository Layout
 
@@ -258,7 +250,6 @@ For complete Docker build and execution instructions: **[View Docker Setup Guide
 ├── api_server.py                   # REST FastAPI backend
 ├── setup_and_train.py              # Parquet dataset compiler and model trainer
 ├── Dockerfile                      # Docker container configuration
-├── DOCKER_SETUP.md                 # Docker build and execution guide
 ├── VYUHA_DOCUMENTATION.md          # Complete project documentation
 └── README.md                       # Repository overview
 ```
