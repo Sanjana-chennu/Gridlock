@@ -1,5 +1,5 @@
 "use client";
-
+import { API_BASE } from "@/lib/api";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -165,21 +165,23 @@ function CivicBriefContent() {
                 )}
 
                 <img
-                  src={`http://127.0.0.1:8000/api/bbmp/image?zone=${encodeURIComponent(selectedZoneName)}`}
-                  alt={`Satellite Frame of ${selectedZoneName}`}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: satImageLoading || satImageError ? "none" : "block",
-                  }}
-                  onLoad={() => setSatImageLoading(false)}
-                  onError={() => {
-                    setSatImageLoading(false);
-                    setSatImageError(true);
-                  }}
-                />
-
+  src={`${API_BASE}/api/bbmp/image?zone=${encodeURIComponent(selectedZoneName)}`}
+  alt={`Satellite Frame of ${selectedZoneName}`}
+  style={{
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: satImageLoading || satImageError ? "none" : "block",
+  }}
+  onLoad={() => {
+    setSatImageLoading(false);
+    setSatImageError(false);
+  }}
+  onError={() => {
+    setSatImageLoading(false);
+    setSatImageError(true);
+  }}
+/>
                 {satImageError && (
                   <div style={{ textAlign: "center", padding: 12, color: "#64748b", fontSize: 12 }}>
                     Stitched imagery offline (FastAPI cache refresh needed)

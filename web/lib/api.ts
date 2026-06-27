@@ -1,7 +1,7 @@
 // 🔌 API Client for Vyuha Intelligence System Frontend
 // Connects React pages to the FastAPI backend running on http://localhost:8000
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export interface HexCell {
   hex_id: string;
